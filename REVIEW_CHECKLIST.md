@@ -18,7 +18,7 @@
 | 12 | Transformation (Code/expressions): filter, sort, top 5 | ✅ | `Top 5 + reshape` Code node |
 | 13 | Second HTTP Request enriching an item | ✅ | `GitHub: fetch README` for each of the top 5 |
 | 14 | IF node with a threshold | ✅ | `Stars ≥ 1000?`, justified with real data ([DECISIONS #13](DECISIONS.md)) |
-| 15 | Output to Discord / Slack / email / … | ✅ | Discord node via credential; digest + 3 failure messages posted to the real channel on 9 Nov 2026 ([discord-messages.png](task2-n8n-workflow/screenshots/discord-messages.png)). Earlier dev runs: [mock log](task2-n8n-workflow/evidence/mock-discord-log.txt) |
+| 15 | Output to Discord / Slack / email / … | ✅ | Discord node via credential; digest + 3 failure messages posted to the real channel on 9 Nov 2026 ([digest](task2-n8n-workflow/screenshots/discord-1-digest.png), [degraded](task2-n8n-workflow/screenshots/discord-2-degraded-alert.png), [README fallback](task2-n8n-workflow/screenshots/discord-3-readme-fallback.png), [crash + uptime](task2-n8n-workflow/screenshots/discord-4-crash-and-uptime.png)). Earlier dev runs: [mock log](task2-n8n-workflow/evidence/mock-discord-log.txt) |
 | 16 | Must not crash silently: Continue On Fail / Error Trigger / error branch | ✅ | All three; proven by [test-failures.sh](task2-n8n-workflow/test-failures.sh) |
 | 17 | No hard-coded secrets, Credentials store only | ✅ | `discordWebhookApi` credential; `n8n-export.sh` secret scan passes; git history scan clean |
 | 18 | Exported JSON `Task2_Workflow_[YourName].json` | ✅ | [Task2_Workflow_SakshiDesai.json](task2-n8n-workflow/Task2_Workflow_SakshiDesai.json), exported from n8n |
