@@ -61,7 +61,7 @@
 
 <tr><td>1</td><td><b>Users can't see each other's articles or comments</b></td>
 <td>1. Sign up as Alice, publish an article. 2. Log out (or sign up as Bob). 3. Open Home → Global Feed, or Alice's profile. 4. As Bob, comment on Alice's article; log in as Alice and open it.</td>
-<td><b>Expected:</b> everyone sees Alice's article; Alice sees Bob's comment.<br><b>Actual:</b> Global Feed says "No articles are here... yet"; <code>GET /articles?author=alice</code> returns <code>articlesCount: 0</code> for Bob; Alice gets <code>{"comments":[]}</code>. Direct links still work, so it seems random to users.</td>
+<td><b>Expected:</b> everyone sees Alice's article; Alice sees Bob's comment.<br><b>Actual:</b> Global Feed says "No articles are here... yet"; <code>GET /articles?author=alice</code> returns <code>articlesCount: 0</code> for Bob; Alice gets <code>{"comments":[]}</code>. Direct links and "Your Feed" (people you follow) still work, so it seems random to users. Following someone is the only workaround, but nobody can find people to follow when every list is empty.</td>
 <td class="sev Critical">Critical</td>
 <td>List queries only include authors where <code>demo = true</code> or the current user. Only seeded accounts have <code>demo = true</code>; real sign-ups are forced to <code>false</code>. <code>article.service.ts:13-25, 419-431</code>; <code>auth.controller.ts:16</code>. See RCA.</td></tr>
 
@@ -122,7 +122,7 @@
 
 <h2>3. Root-cause analysis: Bug #1, "users can't see each other's content"</h2>
 <p><b>What happens.</b> When Alice publishes an article, it appears in her own lists, but Bob, anonymous visitors, and tag pages all get an empty result (<code>articlesCount: 0</code>). Comments are filtered the same way, so Alice never sees Bob's comment on her own article. Opening the article by its direct URL works, which makes the problem look intermittent and hard for users to describe.</p>
-<p><b>Why.</b> In <code>src/app/routes/article/article.service.ts</code>, <code>buildFindAllQuery</code> (lines 13-25) always adds an author filter <code>OR: [{ demo: true }, { id: currentUserId }]</code>, and <code>getCommentsByArticle</code> (lines 419-431) does the same for comments. The <code>demo</code> column is only <code>true</code> for accounts created by the seed script (<code>src/prisma/seed.ts:22</code>), and the sign-up route forces <code>demo: false</code> for every real user (<code>auth.controller.ts:16</code>). This looks like a moderation rule for a public demo server ("only show curated seed content plus your own posts") that shipped as the default behaviour of the app. <code>getArticle</code> (single article) has no such filter, which is why direct links still work.</p>
+<p><b>Why.</b> In <code>src/app/routes/article/article.service.ts</code>, <code>buildFindAllQuery</code> (lines 13-25) always adds an author filter <code>OR: [{ demo: true }, { id: currentUserId }]</code>, and <code>getCommentsByArticle</code> (lines 419-431) does the same for comments. The <code>demo</code> column is only <code>true</code> for accounts created by the seed script (<code>src/prisma/seed.ts:22</code>), and the sign-up route forces <code>demo: false</code> for every real user (<code>auth.controller.ts:16</code>). This looks like a moderation rule for a public demo server ("only show curated seed content plus your own posts") that shipped as the default behaviour of the app. <code>getArticle</code> (single article) and <code>getFeed</code> (lines 113-160, "Your Feed") have no such filter. That's why direct links and the feed of people you follow still work, which makes the bug look intermittent.</p>
 <p><b>Fix.</b> Remove the visibility clause from both queries, so lists filter only by what the user asked for (author, tag, favorited):</p>
 <pre>// article.service.ts – buildFindAllQuery
 const queries: any[] = [];
@@ -145,6 +145,7 @@ return queries;
 
 <h2>5. What worked correctly (tested, no bug)</h2>
 <ul>
+<li><b>Core flows:</b> sign-up, login, create, edit, favorite, comment and logout in the UI (<code>ui-flows.mjs</code>). Follow works: the followed author's article appears in "Your Feed". An owner can delete their own article (204, then 404). See <code>checks-passed.txt</code>.</li>
 <li><b>Access control:</b> Bob can't edit or delete Alice's article (403) or delete her comment (404, and the comment is still there). See <code>bug-session-and-auth.txt</code> and <code>checks-passed.txt</code>.</li>
 <li><b>XSS:</b> <code>&lt;img src=x onerror=…&gt;</code> and <code>javascript:</code> links in article markdown were removed by DOMPurify; the payload didn't run.</li>
 <li><b>Tampered token</b> is rejected with 401. Duplicate email or username at sign-up gets a clean 422.</li>

@@ -14,7 +14,7 @@ Everything below matches what's in the repo. If you're asked about something not
    "No. I read the backend first, about 600 lines, and listed risky spots: the error handler, the list queries, the update logic. Then I tried to reproduce each one with curl and Playwright. A bug only went into the report if it reproduced, and every one has a script and saved evidence."
 
 4. **Why is bug 1 Critical?**
-   "Because the product's main purpose doesn't work: people can't see each other's posts or comments. A visitor sees an empty home page. That's exactly the 'it feels broken' the brief describes, and there's no workaround for users."
+   "Because the product's main purpose doesn't work: people can't see each other's posts or comments. A visitor sees an empty home page. That's exactly the 'it feels broken' the brief describes. The only workaround is to follow someone, because 'Your Feed' has no filter, but you can't find anyone to follow when every list is empty, and comments stay hidden either way."
 
 5. **Couldn't the demo filter be intentional?**
    "Probably it was intentional for the public demo server, to only show curated seed content. But in this app it's not configurable and it's on for everyone, so for a real deployment it's a bug. My fix suggestion is to remove it, or make moderation an explicit opt-in flag."

@@ -12,3 +12,9 @@ CID=$(curl -s -X POST "$API/articles/$SLUG/comments" -H 'Content-Type: applicati
 req DELETE "/articles/$SLUG/comments/$CID" '' "$B"
 echo "## Comment still there for its author"
 req GET "/articles/$SLUG/comments" '' "$A"
+echo "## Follow: Bob follows Kim, then Bob's feed - expected Kim's article"
+req POST "/profiles/kim_$RUN_ID/follow" '' "$B"
+req GET "/articles/feed" '' "$B" | cut -c1-200
+echo "## Owner deletes own article - expected 204, then 404"
+req DELETE "/articles/$SLUG" '' "$A"
+req GET "/articles/$SLUG" '' "$A"
