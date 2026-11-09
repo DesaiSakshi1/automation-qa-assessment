@@ -42,6 +42,9 @@ services:
         ENV VITE_API_URL=http://localhost:3000/api
         RUN npm install --no-audit --no-fund && npx vite build
         CMD npx vite preview --host 0.0.0.0 --port 8080 --strictPort
+    environment:
+      # Vite only answers Host: localhost by default; let the uptime monitor reach it as http://web:8080
+      __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS: web
     ports: ["8080:8080"]
     depends_on: [api]
 
@@ -50,7 +53,9 @@ services:
     environment:
       GENERIC_TIMEZONE: Asia/Kolkata
       TZ: Asia/Kolkata
-      N8N_SECURE_COOKIE: "false"
+      N8N_SECURE_COOKIE: "false"          # plain http on localhost
+      N8N_PERSONALIZATION_ENABLED: "false" # skip the onboarding survey
+      N8N_DIAGNOSTICS_ENABLED: "false"     # no telemetry
     ports: ["5678:5678"]
     volumes: [n8n_data:/home/node/.n8n]
 

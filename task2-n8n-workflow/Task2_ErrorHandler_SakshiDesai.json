@@ -1,0 +1,87 @@
+{
+  "name": "Task 2 – Error handler (crash alerts → Discord)",
+  "nodes": [
+    {
+      "id": "b1000000-0000-4000-8000-000000000001",
+      "name": "On workflow error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "b1000000-0000-4000-8000-000000000002",
+      "name": "Format crash alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Runs when any workflow that names this one as its Error Workflow crashes.\nconst { execution = {}, workflow = {} } = $input.first().json;\nconst content = [\n  `🚨 **Workflow crashed: ${workflow.name ?? 'unknown'}**`,\n  `Node: ${execution.lastNodeExecuted ?? 'unknown'}`,\n  `Error: ${execution.error?.message ?? 'unknown error'}`,\n  `Execution: ${execution.id ?? 'n/a'} (${execution.mode ?? 'n/a'})`,\n].join('\\n');\nreturn [{ json: { content } }];"
+      }
+    },
+    {
+      "id": "b1000000-0000-4000-8000-000000000003",
+      "name": "Discord: post crash alert",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "parameters": {
+        "authentication": "webhook",
+        "operation": "sendLegacy",
+        "content": "={{ $json.content }}",
+        "options": {}
+      },
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "mbDiscordWebhook",
+          "name": "Discord webhook"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On workflow error": {
+      "main": [
+        [
+          {
+            "node": "Format crash alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format crash alert": {
+      "main": [
+        [
+          {
+            "node": "Discord: post crash alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "d414f668-a713-441e-888b-cf29fba4b41d",
+  "meta": null,
+  "id": "mbErrorHandler01",
+  "tags": []
+}

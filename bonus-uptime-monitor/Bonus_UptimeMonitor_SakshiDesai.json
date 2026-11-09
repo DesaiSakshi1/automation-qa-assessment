@@ -1,0 +1,233 @@
+{
+  "name": "Bonus – Uptime monitor (RealWorld app → Discord)",
+  "nodes": [
+    {
+      "id": "c1000000-0000-4000-8000-000000000001",
+      "name": "Every 5 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c1000000-0000-4000-8000-000000000002",
+      "name": "Webhook: check now (test)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        180
+      ],
+      "webhookId": "5b1e2f0a-1c3d-4e5f-8a9b-0c1d2e3f4a51",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "uptime-check",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "c1000000-0000-4000-8000-000000000003",
+      "name": "Ping frontend + API",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        90
+      ],
+      "parameters": {
+        "jsCode": "// GET each target once, record status code and response time.\n// A Code node (not the HTTP Request node) because the HTTP node can't report response time.\n// n8n and the app share a Docker network, so service names work as hostnames.\nconst targets = [\n  { name: 'Frontend', url: 'http://web:8080/' },\n  { name: 'API', url: 'http://api:3000/api/tags' },\n];\nconst results = [];\nfor (const t of targets) {\n  const start = Date.now();\n  let status = null, error = null;\n  try {\n    const res = await this.helpers.httpRequest({ method: 'GET', url: t.url, timeout: 10000, returnFullResponse: true, ignoreHttpStatusErrors: true });\n    status = res.statusCode;\n  } catch (e) {\n    error = e.message; // timeout, connection refused, DNS...\n  }\n  results.push({ json: { ...t, status, ok: status === 200, ms: Date.now() - start, error, at: new Date().toISOString() } });\n}\nreturn results;"
+      }
+    },
+    {
+      "id": "c1000000-0000-4000-8000-000000000004",
+      "name": "Track state + decide alerts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        90
+      ],
+      "parameters": {
+        "jsCode": "// Alert only after 2 failed checks in a row (one blip is ignored); send 'recovered' when back.\n// State lives in workflow static data (persists between production runs).\nconst FAILS_BEFORE_ALERT = 2;\nconst state = $getWorkflowStaticData('global');\nstate.targets ??= {}; state.checks ??= []; state.incidents ??= [];\nconst now = Date.now();\nconst alerts = [];\n\nfor (const { json: r } of $input.all()) {\n  const s = (state.targets[r.name] ??= { fails: 0, down: false, downSince: null });\n  state.checks.push({ t: now, name: r.name, ok: r.ok, ms: r.ms });\n  const why = r.status ? `HTTP ${r.status}` : (r.error ?? 'no response');\n  if (!r.ok) {\n    s.fails++;\n    if (s.fails === FAILS_BEFORE_ALERT && !s.down) {\n      s.down = true; s.downSince = now;\n      state.incidents.push({ t: now, name: r.name });\n      alerts.push(`🔴 **${r.name} is DOWN** (${r.url}): ${why}, failed ${s.fails} checks in a row.`);\n    }\n  } else {\n    if (s.down) alerts.push(`🟢 **${r.name} recovered** (${r.url}): HTTP 200 in ${r.ms} ms after ${Math.max(1, Math.round((now - s.downSince) / 60000))} min down.`);\n    s.fails = 0; s.down = false; s.downSince = null;\n  }\n}\n\n// keep 48 h of history for the daily summary\nconst cutoff = now - 48 * 3600e3;\nstate.checks = state.checks.filter((c) => c.t > cutoff);\nstate.incidents = state.incidents.filter((i) => i.t > cutoff);\n\nreturn alerts.map((content) => ({ json: { content } })); // no alerts -> no items -> nothing is posted"
+      }
+    },
+    {
+      "id": "c1000000-0000-4000-8000-000000000005",
+      "name": "Daily at 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c1000000-0000-4000-8000-000000000006",
+      "name": "Webhook: summary now (test)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        580
+      ],
+      "webhookId": "5b1e2f0a-1c3d-4e5f-8a9b-0c1d2e3f4a52",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "uptime-summary",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "c1000000-0000-4000-8000-000000000007",
+      "name": "Build daily summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        490
+      ],
+      "parameters": {
+        "jsCode": "// Uptime %, average and p95 response time (successful checks), incidents - last 24 h.\nconst state = $getWorkflowStaticData('global');\nconst since = Date.now() - 24 * 3600e3;\nconst checks = (state.checks ?? []).filter((c) => c.t > since);\nconst names = [...new Set(checks.map((c) => c.name))];\n\nconst lines = names.map((name) => {\n  const all = checks.filter((c) => c.name === name);\n  const up = all.filter((c) => c.ok);\n  const ms = up.map((c) => c.ms).sort((a, b) => a - b);\n  const avg = ms.length ? Math.round(ms.reduce((a, b) => a + b, 0) / ms.length) : '–';\n  const p95 = ms.length ? ms[Math.ceil(ms.length * 0.95) - 1] : '–';\n  const incidents = (state.incidents ?? []).filter((i) => i.t > since && i.name === name).length;\n  return `**${name}**: uptime ${(100 * up.length / all.length).toFixed(1)}% (${up.length}/${all.length} checks) · avg ${avg} ms · p95 ${p95} ms · incidents ${incidents}`;\n});\n\nreturn [{ json: { content: '📊 **Uptime summary, last 24 h**\\n' + (lines.join('\\n') || 'No checks recorded yet.') } }];"
+      }
+    },
+    {
+      "id": "c1000000-0000-4000-8000-000000000008",
+      "name": "Discord: post",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        720,
+        290
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "parameters": {
+        "authentication": "webhook",
+        "operation": "sendLegacy",
+        "content": "={{ $json.content }}",
+        "options": {}
+      },
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "mbDiscordWebhook",
+          "name": "Discord webhook"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "Ping frontend + API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: check now (test)": {
+      "main": [
+        [
+          {
+            "node": "Ping frontend + API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ping frontend + API": {
+      "main": [
+        [
+          {
+            "node": "Track state + decide alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Track state + decide alerts": {
+      "main": [
+        [
+          {
+            "node": "Discord: post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily at 09:00": {
+      "main": [
+        [
+          {
+            "node": "Build daily summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: summary now (test)": {
+      "main": [
+        [
+          {
+            "node": "Build daily summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build daily summary": {
+      "main": [
+        [
+          {
+            "node": "Discord: post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "mbErrorHandler01"
+  },
+  "versionId": "b4b75186-da16-4117-bd0f-000141caf6fa",
+  "meta": null,
+  "id": "mbUptimeMonitor1",
+  "tags": []
+}

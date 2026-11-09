@@ -1,0 +1,489 @@
+{
+  "name": "Task 2 – Morning Brief (new LLM repos → Discord)",
+  "nodes": [
+    {
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Every hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Webhook (curl test)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "eef548e9-4672-4a02-b0af-16fe7c987288",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "morning-brief",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryJson",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "GitHub: search new LLM repos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "url": "https://api.github.com/search/repositories",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "=topic:llm created:>{{ $now.minus({ days: 7 }).toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "sort",
+              "value": "stars"
+            },
+            {
+              "name": "order",
+              "value": "desc"
+            },
+            {
+              "name": "per_page",
+              "value": "20"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-morning-brief"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Top 5 + reshape",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Keep the 5 most-starred repos and only the fields the digest needs.\nconst repos = $input.first().json.items ?? [];\nif (repos.length === 0) throw new Error('GitHub search returned 0 repositories (expected thousands for a 7-day window)');\n\nreturn repos\n  .sort((a, b) => b.stargazers_count - a.stargazers_count)\n  .slice(0, 5)\n  .map((r) => ({ json: {\n    name: r.full_name,\n    url: r.html_url,\n    stars: r.stargazers_count,\n    language: r.language ?? 'n/a',\n    description: (r.description ?? '').trim() || 'No description',\n    created_at: r.created_at.slice(0, 10),\n  } }));"
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "GitHub: fetch README",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $json.name }}/readme",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.raw"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-morning-brief"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "readme"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Add README summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Pair each README response with its repo (same order) and keep a short plain-text summary.\n// A failed README call arrives here as an item with `error` (graceful degradation).\nconst repos = $('Top 5 + reshape').all();\n\nfunction summarize(md) {\n  const paragraph = md\n    .replace(/```[\\s\\S]*?```/g, ' ')           // code blocks\n    .replace(/<[^>]+>/g, ' ')                    // html tags (badges, images)\n    .replace(/!\\[[^\\]]*\\]\\([^)]*\\)/g, ' ')        // markdown images\n    .replace(/\\[([^\\]]+)\\]\\([^)]*\\)/g, '$1')       // links -> text\n    .split(/\\n\\s*\\n/)\n    .map((p) => p.replace(/^#+\\s.*$/gm, '').replace(/[*_`>|]/g, ' ').replace(/\\s+/g, ' ').trim())\n    .find((p) => p.length > 40 && /[.!?]/.test(p)); // a real sentence, not a row of nav links\n  if (!paragraph) return null;\n  return paragraph.length > 160 ? paragraph.slice(0, 157) + '…' : paragraph;\n}\n\nreturn $input.all().map((item, i) => {\n  const readme = typeof item.json.readme === 'string' ? item.json.readme : null;\n  return { json: {\n    ...repos[i].json,\n    summary: readme ? summarize(readme) : null,\n    readmeError: readme ? null : (item.json.error?.message ?? 'README missing'),\n  } };\n});"
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Stars ≥ 1000?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "813f5c31-e74b-4695-abae-587654e4eae0",
+              "leftValue": "={{ $json.stars }}",
+              "rightValue": 1000,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "Section: 🔥 Breakout",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1440,
+        -100
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6e01f126-0db7-46cd-8e24-507e87ac1963",
+              "name": "section",
+              "value": "breakout",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "name": "Section: 🌱 Rising",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1440,
+        100
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4891c7ac-7996-4c6d-b1fd-dc2022e38be8",
+              "name": "section",
+              "value": "rising",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000010",
+      "name": "Merge sections",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000011",
+      "name": "Build digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// One Discord message (max 2000 chars) with a Breakout and a Rising section.\nconst repos = $input.all().map((i) => i.json).sort((a, b) => b.stars - a.stars);\nconst line = (r) => `**[${r.name}](<${r.url}>)** ⭐ ${r.stars} · ${r.language} · created ${r.created_at}\\n> ${r.summary ?? r.description}`;\nconst breakout = repos.filter((r) => r.section === 'breakout');\nconst rising = repos.filter((r) => r.section === 'rising');\nconst failed = repos.filter((r) => r.readmeError);\n\nlet content = '☀️ **Morning brief: new LLM repos on GitHub (last 7 days)**';\nif (breakout.length) content += '\\n\\n🔥 **Breakout (≥ 1000 ⭐)**\\n' + breakout.map(line).join('\\n');\nif (rising.length) content += '\\n\\n🌱 **Rising**\\n' + rising.map(line).join('\\n');\nif (failed.length) content += `\\n\\n⚠️ README unavailable for ${failed.length} repo(s), showing the GitHub description instead (${failed.map((f) => `${f.name}: ${f.readmeError}`).join('; ')})`;\nif (content.length > 2000) content = content.slice(0, 1997) + '…';\n\nreturn [{ json: { content, repos: repos.length, breakout: breakout.length, readmeFailures: failed.length } }];"
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000012",
+      "name": "Discord: post digest",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "parameters": {
+        "authentication": "webhook",
+        "operation": "sendLegacy",
+        "content": "={{ $json.content }}",
+        "options": {}
+      },
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "mbDiscordWebhook",
+          "name": "Discord webhook"
+        }
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000013",
+      "name": "Format degraded alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// The GitHub search failed after 3 tries: tell the channel instead of failing silently.\nconst e = $input.first().json.error ?? {};\nconst status = e.httpCode ?? e.status ?? 'no HTTP status';\nconst content = `⚠️ **Morning brief degraded**: \\`GitHub: search new LLM repos\\` failed after 3 tries with ${status} / ${String(e.message ?? 'unknown error').replace(/\\s+/g, ' ').slice(0, 200)}. No digest this run; next try in 1 hour. (execution ${$execution.id})`;\nreturn [{ json: { content } }];"
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000014",
+      "name": "Discord: post alert",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "parameters": {
+        "authentication": "webhook",
+        "operation": "sendLegacy",
+        "content": "={{ $json.content }}",
+        "options": {}
+      },
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "mbDiscordWebhook",
+          "name": "Discord webhook"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every hour": {
+      "main": [
+        [
+          {
+            "node": "GitHub: search new LLM repos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook (curl test)": {
+      "main": [
+        [
+          {
+            "node": "GitHub: search new LLM repos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub: search new LLM repos": {
+      "main": [
+        [
+          {
+            "node": "Top 5 + reshape",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format degraded alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Top 5 + reshape": {
+      "main": [
+        [
+          {
+            "node": "GitHub: fetch README",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub: fetch README": {
+      "main": [
+        [
+          {
+            "node": "Add README summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add README summary": {
+      "main": [
+        [
+          {
+            "node": "Stars ≥ 1000?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stars ≥ 1000?": {
+      "main": [
+        [
+          {
+            "node": "Section: 🔥 Breakout",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Section: 🌱 Rising",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section: 🔥 Breakout": {
+      "main": [
+        [
+          {
+            "node": "Merge sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section: 🌱 Rising": {
+      "main": [
+        [
+          {
+            "node": "Merge sections",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge sections": {
+      "main": [
+        [
+          {
+            "node": "Build digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build digest": {
+      "main": [
+        [
+          {
+            "node": "Discord: post digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format degraded alert": {
+      "main": [
+        [
+          {
+            "node": "Discord: post alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "mbErrorHandler01",
+    "saveManualExecutions": true
+  },
+  "versionId": "d402a91a-db7b-40c0-bc47-63fac15ee3fd",
+  "meta": null,
+  "id": "mbMorningBrief01",
+  "tags": []
+}

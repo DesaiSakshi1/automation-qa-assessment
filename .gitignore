@@ -5,4 +5,4 @@ n8n_data/
 *.har
 test-results/
 playwright-report/
-**/report-source/*.tmp.*
+.tmp-variants/
