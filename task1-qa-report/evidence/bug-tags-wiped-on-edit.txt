@@ -1,0 +1,18 @@
+# 2026-11-09T15:58:39Z  run 179423991924203
+## Create article with 2 tags
+> POST http://localhost:3000/api/articles  (Authorization: Token <jwt>)
+> body: {"article":{"title":"Tagged 179423991924203","description":"d","body":"v1","tagList":["keep-me","and-me"]}}
+{"article":{"slug":"Tagged-179423991924203-5","title":"Tagged 179423991924203","description":"d","body":"v1","tagList":["keep-me","and-me"],"createdAt":"2026-11-09T15:58:39.666Z","updatedAt":"2026-11-09T15:58:39.666Z","favorited":false,"favoritesCount":0,"author":{"username":"erin_179423991924203","bio":null,"image":"https://api.realworld.io/images/smiley-cyrus.jpeg","following":false}}}
+HTTP 201 in 0.023390s
+
+## Fix a typo in the body only (spec: fields not sent stay unchanged)
+> PUT http://localhost:3000/api/articles/Tagged-179423991924203-5  (Authorization: Token <jwt>)
+> body: {"article":{"body":"v2 - typo fixed"}}
+{"article":{"slug":"Tagged-179423991924203-5","title":"Tagged 179423991924203","description":"d","body":"v2 - typo fixed","tagList":[],"createdAt":"2026-11-09T15:58:39.666Z","updatedAt":"2026-11-09T15:58:39.936Z","favorited":false,"favoritesCount":0,"author":{"username":"erin_179423991924203","bio":null,"image":"https://api.realworld.io/images/smiley-cyrus.jpeg","following":false}}}
+HTTP 200 in 0.021673s
+
+## Re-read the article: tagList should still be [keep-me, and-me]
+> GET http://localhost:3000/api/articles/Tagged-179423991924203-5  (Authorization: Token <jwt>)
+{"article":{"slug":"Tagged-179423991924203-5","title":"Tagged 179423991924203","description":"d","body":"v2 - typo fixed","tagList":[],"createdAt":"2026-11-09T15:58:39.666Z","updatedAt":"2026-11-09T15:58:39.936Z","favorited":false,"favoritesCount":0,"author":{"username":"erin_179423991924203","bio":null,"image":"https://api.realworld.io/images/smiley-cyrus.jpeg","following":false}}}
+HTTP 200 in 0.013301s
+

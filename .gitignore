@@ -1,0 +1,8 @@
+.env
+vendor/
+node_modules/
+n8n_data/
+*.har
+test-results/
+playwright-report/
+**/report-source/*.tmp.*

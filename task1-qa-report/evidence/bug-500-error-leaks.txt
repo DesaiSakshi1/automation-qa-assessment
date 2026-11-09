@@ -1,0 +1,30 @@
+# 2026-11-09T15:58:37Z  run 179423991718694
+## 1. Comment on an article that does not exist (expected 404)
+> POST http://localhost:3000/api/articles/does-not-exist-179423991718694/comments  (Authorization: Token <jwt>)
+> body: {"comment":{"body":"hi"}}
+"Argument data.article.connect of type ArticleWhereUniqueInput needs at least one argument.\n"
+HTTP 500 in 0.023924s
+
+## 2. Comment request without the 'comment' wrapper (expected 422)
+> POST http://localhost:3000/api/articles/does-not-exist-179423991718694/comments  (Authorization: Token <jwt>)
+> body: {"body":"hi"}
+"Cannot read properties of undefined (reading 'body')"
+HTTP 500 in 0.013194s
+
+## 3. Favorite an article that does not exist (expected 404)
+> POST http://localhost:3000/api/articles/does-not-exist-179423991718694/favorite  (Authorization: Token <jwt>)
+"\nInvalid `prisma.article.update()` invocation:\n\n\nQuery interpretation error. Error for binding '0': AssertionError(\"Required exactly one parent ID to be present for connect query, found 0.\")"
+HTTP 500 in 0.015358s
+
+## 4. Change my email to one another user already has (expected 422 'has already been taken')
+> PUT http://localhost:3000/api/user  (Authorization: Token <jwt>)
+> body: {"user":{"email":"dave_179423991718694@qa.localhost"}}
+"\nInvalid `prisma.user.update()` invocation:\n\n\nUnique constraint failed on the fields: (`email`)"
+HTTP 500 in 0.016953s
+
+## 5. Create article without the 'article' wrapper (expected 422)
+> POST http://localhost:3000/api/articles  (Authorization: Token <jwt>)
+> body: {"title":"x"}
+"Cannot destructure property 'title' of 'article' as it is undefined."
+HTTP 500 in 0.011269s
+

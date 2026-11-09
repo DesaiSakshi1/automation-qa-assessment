@@ -1,0 +1,3 @@
+# 2026-11-09T15:59:46Z  run 179423998611591
+## Token lifetime (decoded JWT payload)
+{"user":{"id":14},"iat":1794239986,"exp":1799423986}

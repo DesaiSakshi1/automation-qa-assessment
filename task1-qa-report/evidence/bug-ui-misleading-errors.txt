@@ -1,0 +1,5 @@
+# 2026-11-09T16:02:23.383Z
+API PUT http://localhost:3000/api/user -> 500
+(a) UI shows: "networkUnable to connect to the server"  url=http://localhost:8080/settings
+API POST http://localhost:3000/api/articles -> 401
+(b) UI shows: "networkUnable to connect to the server"  header: conduit Home New Article Settings ivy1794240143093

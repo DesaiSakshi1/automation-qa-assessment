@@ -1,0 +1,89 @@
+{
+  "date": "2026-11-09T16:00:51.864Z",
+  "web": "http://localhost:8080",
+  "steps": [
+    {
+      "name": "sign-up",
+      "tokenInLocalStorage": true,
+      "cookies": 0
+    },
+    {
+      "name": "create article",
+      "url": "http://localhost:8080/article/UI-article-mw9g78go-17",
+      "xssFired": false,
+      "sanitizedLinkHref": null
+    },
+    {
+      "name": "edit article",
+      "tagsAfterEdit": [
+        "uitag"
+      ]
+    },
+    {
+      "name": "comment double-click",
+      "commentsCreated": 2
+    },
+    {
+      "name": "favorite",
+      "countBefore": "0",
+      "countAfter": "1"
+    },
+    {
+      "name": "axe",
+      "home": [
+        "color-contrast(serious,11)",
+        "image-alt(critical,2)",
+        "landmark-one-main(moderate,1)",
+        "link-name(serious,1)",
+        "region(moderate,5)"
+      ],
+      "article": [
+        "color-contrast(serious,18)",
+        "image-alt(critical,6)",
+        "landmark-one-main(moderate,1)",
+        "link-name(serious,4)",
+        "region(moderate,12)"
+      ],
+      "editor": [
+        "color-contrast(serious,5)",
+        "image-alt(critical,1)",
+        "landmark-one-main(moderate,1)",
+        "page-has-heading-one(moderate,1)",
+        "region(moderate,1)"
+      ],
+      "settings": [
+        "color-contrast(serious,6)",
+        "image-alt(critical,1)",
+        "landmark-one-main(moderate,1)",
+        "region(moderate,6)"
+      ]
+    },
+    {
+      "name": "keyboard first tab stop",
+      "tag": "A",
+      "text": "conduit",
+      "outline": "auto 5px"
+    },
+    {
+      "name": "logout",
+      "tokenStillInStorage": false,
+      "oldTokenApiStatus": 200
+    },
+    {
+      "name": "logout in tab 1, publish in tab 2",
+      "tab2Url": "http://localhost:8080/editor",
+      "tab2Header": "conduit Home New Article Settings ui_mw9g78go"
+    },
+    {
+      "name": "API down",
+      "visibleText": "conduit Home Sign in Sign up conduit A place to share your knowledge. Global Feed Loading articles... Popular Tags conduit An interactive learning project from Thinkster. Code & design licensed under MIT."
+    },
+    {
+      "name": "slow 3G home",
+      "loadEventMs": 980,
+      "text": "conduit Home Sign in Sign up conduit A place to share your knowledge. Global Feed No articles are here... yet. Popular Tags conduit An interactive learning proj"
+    }
+  ],
+  "browser": "Chromium 141.0.7390.37",
+  "console": []
+}

@@ -1,0 +1,24 @@
+# 2026-11-09T15:59:44.324Z
+## Mixed title keeps its text (works)
+> POST http://localhost:3000/api/articles
+> body: {"article":{"title":"Café 🚀 nonlatin1794239984340","description":"d","body":"b"}}
+{"article":{"slug":"Cafe-nonlatin1794239984340-11","title":"Café 🚀 nonlatin1794239984340","description":"d","body":"b","tagList":[],"createdAt":"2026-11-09T15:59:44.590Z","updatedAt":"2026-11-09T15:59:44.590Z","favorited":false,"favoritesCount":0,"author":{"username":"nonlatin1794239984340","bio":null,"image":"https://api.realworld.io/images/smiley-cyrus.jpeg","following":false}}}
+HTTP 201
+
+## First fully Hindi title -> slug loses every character
+> POST http://localhost:3000/api/articles
+> body: {"article":{"title":"नमस्ते दुनिया","description":"d","body":"b"}}
+{"article":{"slug":"-11","title":"नमस्ते दुनिया","description":"d","body":"b","tagList":[],"createdAt":"2026-11-09T15:59:44.629Z","updatedAt":"2026-11-09T15:59:44.629Z","favorited":false,"favoritesCount":0,"author":{"username":"nonlatin1794239984340","bio":null,"image":"https://api.realworld.io/images/smiley-cyrus.jpeg","following":false}}}
+HTTP 201
+
+## Second, different Hindi title -> expected 201, gets 422 "must be unique"
+> POST http://localhost:3000/api/articles
+> body: {"article":{"title":"मेरा दूसरा लेख","description":"d","body":"b"}}
+{"errors":{"title":["must be unique"]}}
+HTTP 422
+
+## Different Chinese title -> same rejection
+> POST http://localhost:3000/api/articles
+> body: {"article":{"title":"测试","description":"d","body":"b"}}
+{"errors":{"title":["must be unique"]}}
+HTTP 422

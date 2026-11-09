@@ -1,0 +1,59 @@
+# One command runs everything: RealWorld (Postgres + Node API + Vue UI) and n8n.
+#   docker compose up -d --build
+# App sources are pulled at pinned commits straight from GitHub (no vendored code).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: conduit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: conduit
+    volumes: [db_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conduit"]
+      interval: 3s
+      retries: 20
+
+  api:
+    build:
+      context: https://github.com/gothinkster/node-express-realworld-example-app.git#30b68e1e881462b2f4164ea09ab4c4f5699c7b0b
+      dockerfile_inline: |
+        FROM node:20-bookworm
+        WORKDIR /app
+        COPY . .
+        RUN npm ci && npx prisma generate
+        CMD npx prisma migrate deploy && npx nx serve api
+    environment:
+      DATABASE_URL: postgresql://conduit:${POSTGRES_PASSWORD}@db:5432/conduit
+      JWT_SECRET: ${JWT_SECRET}
+      NODE_ENV: production
+      NX_DAEMON: "false"
+    ports: ["3000:3000"]
+    depends_on:
+      db: { condition: service_healthy }
+
+  web:
+    build:
+      context: https://github.com/gothinkster/vue-realworld-example-app.git#db749e3bb1a45755e0a3f4065abaf7346f004f36
+      dockerfile_inline: |
+        FROM node:22-bookworm
+        WORKDIR /app
+        COPY . .
+        ENV VITE_API_URL=http://localhost:3000/api
+        RUN npm install --no-audit --no-fund && npx vite build
+        CMD npx vite preview --host 0.0.0.0 --port 8080 --strictPort
+    ports: ["8080:8080"]
+    depends_on: [api]
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:${N8N_VERSION:-2.46.7}
+    environment:
+      GENERIC_TIMEZONE: Asia/Kolkata
+      TZ: Asia/Kolkata
+      N8N_SECURE_COOKIE: "false"
+    ports: ["5678:5678"]
+    volumes: [n8n_data:/home/node/.n8n]
+
+volumes:
+  db_data:
+  n8n_data:

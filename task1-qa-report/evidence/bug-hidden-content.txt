@@ -1,0 +1,43 @@
+# 2026-11-09T15:58:35Z  run 179423991532024
+## Alice publishes an article
+> POST http://localhost:3000/api/articles  (Authorization: Token <jwt>)
+> body: {"article":{"title":"Visible to all 179423991532024","description":"d","body":"hello","tagList":["qa179423991532024"]}}
+{"article":{"slug":"Visible-to-all-179423991532024-1","title":"Visible to all 179423991532024","description":"d","body":"hello","tagList":["qa179423991532024"],"createdAt":"2026-11-09T15:58:36.878Z","updatedAt":"2026-11-09T15:58:36.878Z","favorited":false,"favoritesCount":0,"author":{"username":"alice_179423991532024","bio":null,"image":"https://api.realworld.io/images/smiley-cyrus.jpeg","following":false}}}
+HTTP 201 in 0.037649s
+
+## Alice sees it in her list (articlesCount should be 1)
+> GET http://localhost:3000/api/articles?author=alice_179423991532024  (Authorization: Token <jwt>)
+{"articles":[{"slug":"Visible-to-all-179423991532024-1","title":"Visible to all 179423991532024","description":"d","body":"hello","tagList":["qa179423991532024"],"createdAt":"2026-11-09T15:58:36.878Z","updatedAt":"2026-11-09T15:58:36.878Z","favorited":false,"favoritesCount":0,"author":{"username":"alice_179423991532024","bio":null,"image":"https://api.realworld.io/images/smiley-cyrus.jpeg","following":false}}],"articlesCount":1}
+HTTP 200 in 0.019045s
+
+## Bob (logged in) lists Alice's articles - expected 1, check articlesCount
+> GET http://localhost:3000/api/articles?author=alice_179423991532024  (Authorization: Token <jwt>)
+{"articles":[],"articlesCount":0}
+HTTP 200 in 0.022405s
+
+## Anonymous visitor lists by tag - expected 1
+> GET http://localhost:3000/api/articles?tag=qa179423991532024
+{"articles":[],"articlesCount":0}
+HTTP 200 in 0.016105s
+
+## Bob opens the direct link - works
+> GET http://localhost:3000/api/articles/Visible-to-all-179423991532024-1  (Authorization: Token <jwt>)
+{"article":{"slug":"Visible-to-all-179423991532024-1","title":"Visible to all 179423991532024","description":"d","body":"hello","tagList":["qa179423991532024"],"createdAt":"2026-11-09T15:58:36.878Z","updatedAt":"2026-11-09T15:58:36.878Z","favorited":false,"favoritesCount":0,"author":{"username":"alice_179423991532024","bio":null,"image":"https://api.realworld.io/images/smiley-cyrus.jpeg","following":false}}}
+HTTP 200 in 0.017602s
+
+## Bob comments on Alice's article
+> POST http://localhost:3000/api/articles/Visible-to-all-179423991532024-1/comments  (Authorization: Token <jwt>)
+> body: {"comment":{"body":"Great post from Bob"}}
+{"comment":{"id":1,"createdAt":"2026-11-09T15:58:37.530Z","updatedAt":"2026-11-09T15:58:37.530Z","body":"Great post from Bob","author":{"username":"bob_179423991532024","bio":null,"image":"https://api.realworld.io/images/smiley-cyrus.jpeg","following":false}}}
+HTTP 200 in 0.018895s
+
+## Alice (the author) loads comments - expected Bob's comment
+> GET http://localhost:3000/api/articles/Visible-to-all-179423991532024-1/comments  (Authorization: Token <jwt>)
+{"comments":[]}
+HTTP 200 in 0.016467s
+
+## Anonymous loads comments
+> GET http://localhost:3000/api/articles/Visible-to-all-179423991532024-1/comments
+{"comments":[]}
+HTTP 200 in 0.007604s
+

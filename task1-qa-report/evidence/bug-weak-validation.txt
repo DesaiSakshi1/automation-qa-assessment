@@ -1,0 +1,31 @@
+# 2026-11-09T15:59:45Z  run 179423998515808
+## 1. Sign up with an invalid email and a 1-character password (expected 422)
+> POST http://localhost:3000/api/users
+> body: {"user":{"username":"weak_179423998515808","email":"not-an-email-179423998515808","password":"1"}}
+{"user":{"id":12,"email":"not-an-email-179423998515808","username":"weak_179423998515808","bio":null,"image":"https://api.realworld.io/images/smiley-cyrus.jpeg","token":"<jwt redacted>"}}
+HTTP 201 in 0.126026s
+
+## 2. Article whose title is only spaces (expected 422 can't be blank)
+> POST http://localhost:3000/api/articles  (Authorization: Token <jwt>)
+> body: {"article":{"title":"     ","description":"d","body":"b"}}
+{"article":{"slug":"-13","title":"     ","description":"d","body":"b","tagList":[],"createdAt":"2026-11-09T15:59:45.626Z","updatedAt":"2026-11-09T15:59:45.626Z","favorited":false,"favoritesCount":0,"author":{"username":"frank_179423998515808","bio":null,"image":"https://api.realworld.io/images/smiley-cyrus.jpeg","following":false}}}
+HTTP 201 in 0.015755s
+
+## 3. Title made only of punctuation - two different titles
+> POST http://localhost:3000/api/articles  (Authorization: Token <jwt>)
+> body: {"article":{"title":"!!!","description":"d","body":"b"}}
+{"article":{"slug":"!!!-13","title":"!!!","description":"d","body":"b","tagList":[],"createdAt":"2026-11-09T15:59:45.753Z","updatedAt":"2026-11-09T15:59:45.753Z","favorited":false,"favoritesCount":0,"author":{"username":"frank_179423998515808","bio":null,"image":"https://api.realworld.io/images/smiley-cyrus.jpeg","following":false}}}
+HTTP 201 in 0.034968s
+
+> POST http://localhost:3000/api/articles  (Authorization: Token <jwt>)
+> body: {"article":{"title":"???","description":"d","body":"b"}}
+{"errors":{"title":["must be unique"]}}
+HTTP 422 in 0.007918s
+
+## 4. 20,000-character title (expected a length limit)
+> POST http://localhost:3000/api/articles  (Authorization: Token <jwt>)
+> body: {"article":{"title":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+{"article":{"slug":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+HTTP 201 in 0.043938s
+
+## Non-Latin titles: see bug-non-latin-titles.mjs (Node, so UTF-8 is sent correctly on Windows)

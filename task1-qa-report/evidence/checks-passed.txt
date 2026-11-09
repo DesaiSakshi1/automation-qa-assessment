@@ -1,0 +1,22 @@
+# 2026-11-09T16:06:29Z  run 179424038924934
+## Duplicate email / username at sign-up - expected 422
+> POST http://localhost:3000/api/users
+> body: {"user":{"username":"kim_179424038924934","email":"other_179424038924934@qa.localhost","password":"Passw0rd!123"}}
+{"errors":{"username":["has already been taken"]}}
+HTTP 422 in 0.009895s
+
+> POST http://localhost:3000/api/users
+> body: {"user":{"username":"other_179424038924934","email":"kim_179424038924934@qa.localhost","password":"Passw0rd!123"}}
+{"errors":{"email":["has already been taken"]}}
+HTTP 422 in 0.013800s
+
+## Bob tries to delete Alice's comment - expected 403/404
+> DELETE http://localhost:3000/api/articles/Kim-post-179424038924934-21/comments/6  (Authorization: Token <jwt>)
+{}
+HTTP 404 in 0.011167s
+
+## Comment still there for its author
+> GET http://localhost:3000/api/articles/Kim-post-179424038924934-21/comments  (Authorization: Token <jwt>)
+{"comments":[{"id":6,"createdAt":"2026-11-09T16:06:30.922Z","updatedAt":"2026-11-09T16:06:30.922Z","body":"mine","author":{"username":"kim_179424038924934","bio":null,"image":"https://api.realworld.io/images/smiley-cyrus.jpeg","following":false}}]}
+HTTP 200 in 0.014409s
+

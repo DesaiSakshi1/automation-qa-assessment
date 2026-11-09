@@ -1,0 +1,219 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Task 1 – QA &amp; Debug Report – Sakshi Desai</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm; }
+  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 10.5pt; color: #1d2733; line-height: 1.4; }
+  h1 { font-size: 19pt; margin: 0 0 2px; color: #1f4e79; }
+  h2 { font-size: 13pt; color: #1f4e79; border-bottom: 2px solid #1f4e79; padding-bottom: 2px; margin: 18px 0 8px; }
+  h3 { font-size: 11pt; margin: 12px 0 4px; }
+  .sub { color: #555; margin: 0 0 10px; }
+  table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  th, td { border: 1px solid #b7c3cf; padding: 4px 5px; vertical-align: top; text-align: left; word-wrap: break-word; overflow-wrap: anywhere; }
+  th { background: #1f4e79; color: #fff; font-size: 9pt; }
+  .bugs td { font-size: 8.4pt; }
+  .bugs tr { break-inside: avoid; }
+  .env td:first-child { width: 28%; font-weight: 600; background: #eef3f8; }
+  code, pre { font-family: Consolas, monospace; font-size: 8pt; }
+  pre { background: #f4f6f8; border: 1px solid #d5dbe1; padding: 6px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0 8px; }
+  .sev { font-weight: 700; }
+  .Critical { color: #b00020; } .High { color: #d9480f; } .Medium { color: #b08900; } .Low { color: #2b8a3e; }
+  .box { background: #eef3f8; border-left: 4px solid #1f4e79; padding: 8px 10px; margin: 8px 0; }
+  .ev { break-inside: avoid; margin-bottom: 10px; }
+  .ev img { width: 100%; border: 1px solid #ccc; }
+  .two { display: flex; gap: 8px; } .two > div { flex: 1; }
+  .small { font-size: 8.5pt; color: #555; }
+  ul { margin: 4px 0; padding-left: 18px; }
+  .pagebreak { break-before: page; }
+  h2, h3 { break-after: avoid; }
+  h2 + p { break-before: avoid; }
+</style>
+</head>
+<body>
+
+<h1>Web App QA &amp; Debug Report</h1>
+<p class="sub">RealWorld "Conduit" (blog platform) · Prepared by Sakshi Desai · 9 November 2026</p>
+
+<h2>Executive summary</h2>
+<div class="box">
+<p><b>The app is not ready for production.</b> The most serious problem is that people can't see each other's content: articles and comments posted by real users are only visible to the person who wrote them, so the home page looks empty to visitors and authors never see replies. That alone explains the "it feels broken" reports.</p>
+<p><b>Top 3 risks:</b> (1) user content is invisible to everyone else, so the product's main purpose doesn't work; (2) many ordinary mistakes crash the server, which then shows internal technical details and tells users "Unable to connect to the server" when the real cause is something else; (3) weak account protection: one-character passwords are accepted, login attempts are unlimited, and a stolen login stays valid for 60 days even after the user logs out.</p>
+<p>I found 10 issues (1 Critical, 3 High, 4 Medium, 2 Low). Each one was reproduced on the running app and has a repro script that can be rerun, plus saved evidence. Several things that are often broken in apps like this worked correctly; they're listed in section 5.</p>
+</div>
+
+<h2>1. Test environment</h2>
+<table class="env">
+<tr><td>Application</td><td>RealWorld "Conduit". The public demo (demo.realworld.io) was down on test day (HTTP 404; its API returned 530), so I ran it locally.</td></tr>
+<tr><td>Backend</td><td>gothinkster/node-express-realworld-example-app @ <code>30b68e1</code> (Express 4 + Prisma 4 + PostgreSQL 16), Node 20</td></tr>
+<tr><td>Frontend</td><td>gothinkster/vue-realworld-example-app @ <code>db749e3</code> (Vue 3 + Vite), Node 22</td></tr>
+<tr><td>Runtime</td><td>Docker Compose (Docker 29.7.2) on Windows 11; app at <code>localhost:8080</code>, API at <code>localhost:3000/api</code></td></tr>
+<tr><td>Tools</td><td>curl (API), Playwright 1.56 with headless Chromium 141 (UI), axe-core 4.11 (accessibility), code review of both repos</td></tr>
+<tr><td>Scope</td><td>Sign-up, login, create/edit/delete article, comments, favorite, follow, logout; validation, session, access control, XSS, error handling, double-submit, API outage, slow network, accessibility</td></tr>
+</table>
+
+<h2 class="pagebreak">2. Bug table</h2>
+<p class="small"><b>Severity rubric:</b> <b>Critical</b> = core purpose broken or data loss for normal users, no workaround · <b>High</b> = security weakness with real impact, or data loss/failure in a main flow · <b>Medium</b> = wrong behaviour with a workaround, or an info leak · <b>Low</b> = cosmetic, polish, accessibility hardening. Ranked by impact on production use.</p>
+<table class="bugs">
+<colgroup><col style="width:4%"><col style="width:16%"><col style="width:23%"><col style="width:25%"><col style="width:9.5%"><col style="width:22.5%"></colgroup>
+<thead><tr><th>#</th><th>Title / Summary</th><th>Steps to Reproduce</th><th>Expected vs Actual</th><th>Severity</th><th>Suspected Cause</th></tr></thead>
+
+<tr><td>1</td><td><b>Users can't see each other's articles or comments</b></td>
+<td>1. Sign up as Alice, publish an article. 2. Log out (or sign up as Bob). 3. Open Home → Global Feed, or Alice's profile. 4. As Bob, comment on Alice's article; log in as Alice and open it.</td>
+<td><b>Expected:</b> everyone sees Alice's article; Alice sees Bob's comment.<br><b>Actual:</b> Global Feed says "No articles are here... yet"; <code>GET /articles?author=alice</code> returns <code>articlesCount: 0</code> for Bob; Alice gets <code>{"comments":[]}</code>. Direct links still work, so it seems random to users.</td>
+<td class="sev Critical">Critical</td>
+<td>List queries only include authors where <code>demo = true</code> or the current user. Only seeded accounts have <code>demo = true</code>; real sign-ups are forced to <code>false</code>. <code>article.service.ts:13-25, 419-431</code>; <code>auth.controller.ts:16</code>. See RCA.</td></tr>
+
+<tr><td>2</td><td><b>Bad requests crash with HTTP 500 and expose internal error text</b></td>
+<td>Logged in, send: (a) comment on a non-existent article; (b) favorite a non-existent article; (c) change your email to one another user has; (d) POST /articles or a comment with a malformed body.</td>
+<td><b>Expected:</b> 404 / 422 with a friendly message.<br><b>Actual:</b> HTTP 500 in all 5 cases, with raw text such as <code>Invalid `prisma.user.update()` invocation: Unique constraint failed on the fields: (`email`)</code> and <code>Cannot read properties of undefined (reading 'body')</code>.</td>
+<td class="sev High">High</td>
+<td>The global error handler sends <code>err.message</code> for any unknown error (<code>main.ts:44</code>). Services don't check that the article exists (<code>article.service.ts:478-492</code>) or that the email is unique on update (<code>auth.service.ts:151</code>). The controller reads <code>req.body.comment.body</code> without validating it (<code>article.controller.ts:175</code>).</td></tr>
+
+<tr><td>3</td><td><b>Editing an article silently deletes all its tags</b></td>
+<td>1. Create an article with tags <code>keep-me, and-me</code>. 2. <code>PUT /articles/:slug</code> with only <code>{"body":"typo fixed"}</code>. 3. GET the article.</td>
+<td><b>Expected:</b> only the body changes (fields you don't send stay the same, as the spec says).<br><b>Actual:</b> <code>tagList: []</code>, both tags gone. The web UI always resends tags, so mainly API clients and integrations (mobile app, scripts) are affected.</td>
+<td class="sev High">High</td>
+<td><code>updateArticle</code> always calls <code>disconnectArticlesTags(slug)</code> before saving (<code>article.service.ts:343</code>), even when the request has no <code>tagList</code>. It's also not wrapped in a transaction.</td></tr>
+
+<tr><td>4</td><td><b>No brute-force protection, and one-character passwords are allowed</b></td>
+<td>1. Sign up with password <code>1</code>. 2. Send 30 wrong logins in a row, then the right one.</td>
+<td><b>Expected:</b> a minimum password strength; after a few failures, a 429 response or a delay.<br><b>Actual:</b> sign-up returns 201; all 30 failures return 403 with no slowdown, and the 31st (correct) login succeeds. An attacker can guess passwords without limit.</td>
+<td class="sev High">High</td>
+<td>No rate-limiting middleware in <code>main.ts</code>. <code>createUser</code> only checks that the password is not blank (<code>auth.service.ts:52</code>).</td></tr>
+
+<tr><td>5</td><td><b>Logging out doesn't end the session; tokens last 60 days</b></td>
+<td>1. Log in, copy the token (stored in <code>localStorage</code>). 2. Click "Or click here to logout". 3. Call <code>GET /api/user</code> with the old token.</td>
+<td><b>Expected:</b> 401 after logout.<br><b>Actual:</b> 200, still logged in. The token is valid for 60 days (<code>exp − iat = 5,184,000 s</code>). It sits in localStorage, so any future XSS bug could read it.</td>
+<td class="sev Medium">Medium</td>
+<td>Logout only deletes the token in the browser; the server has no logout or revoke step (<code>web/src/store/auth.js</code> <code>purgeAuth</code>). Long expiry is set in <code>token.utils.ts:5</code>.</td></tr>
+
+<tr><td>6</td><td><b>Users get "Unable to connect to the server" for errors that aren't network errors</b></td>
+<td>(a) Settings → change email to an existing user's → Update. (b) Open the editor in two tabs, log out in tab 1, press Publish in tab 2.</td>
+<td><b>Expected:</b> "Email already taken" / "Your session ended, please log in again".<br><b>Actual:</b> both show <code>networkUnable to connect to the server</code> (wrong message, plus a missing space). In (b), tab 2 still shows the user as logged in. The API actually returned 500 and 401.</td>
+<td class="sev Medium">Medium</td>
+<td>The frontend only understands error bodies shaped <code>{errors:{...}}</code>; anything else is labelled a network failure (<code>web/src/common/errors.js:15</code>). The backend's 401 and 500 bodies use a different shape (<code>main.ts:35-44</code>).</td></tr>
+
+<tr><td>7</td><td><b>Titles in Hindi, Chinese, emoji or only spaces break article links</b></td>
+<td>1. Publish an article titled <code>नमस्ते दुनिया</code>. 2. Publish a second one titled <code>मेरा दूसरा लेख</code>. 3. Also try a title of only spaces.</td>
+<td><b>Expected:</b> both publish, each with its own URL; a blank title is rejected.<br><b>Actual:</b> the first gets slug <code>-11</code>; the second is rejected with <code>422 title must be unique</code>. A title of 5 spaces is accepted (slug <code>-13</code>). A 20,000-character title is also accepted.</td>
+<td class="sev Medium">Medium</td>
+<td>The slug is <code>slugify(title)</code> + user id (<code>article.service.ts:178</code>). slugify drops characters it can't transliterate, so all non-Latin titles from one user collide. Validation uses <code>!title</code>, so whitespace passes; there's no max length.</td></tr>
+
+<tr><td>8</td><td><b>Double-clicking "Post Comment" posts the comment twice</b></td>
+<td>Open an article, type a comment, double-click Post Comment, reload.</td>
+<td><b>Expected:</b> one comment.<br><b>Actual:</b> two identical comments (screenshot E8).</td>
+<td class="sev Medium">Medium</td>
+<td>The comment form never disables its button while saving (<code>web/src/components/CommentEditor.vue:16, 41</code>), unlike the article editor, which uses <code>:disabled="inProgress"</code>. The API has no idempotency check.</td></tr>
+
+<tr><td>9</td><td><b>If the API is down, the home page spins forever</b></td>
+<td>Block or stop the API, then open the home page.</td>
+<td><b>Expected:</b> "We can't load articles right now" plus a retry button.<br><b>Actual:</b> "Loading articles..." stays on screen indefinitely, and Popular Tags stays empty (screenshot E9).</td>
+<td class="sev Low">Low</td>
+<td>The load error is swallowed: <code>fetchArticles(...).catch(() =&gt; {})</code>, which leaves <code>isLoading</code> true (<code>web/src/components/ArticleList.vue:87-89</code>).</td></tr>
+
+<tr><td>10</td><td><b>Broken avatar images and accessibility failures</b></td>
+<td>Sign up and look at the header and comments; run axe-core on the Home, Article, Editor and Settings pages.</td>
+<td><b>Expected:</b> a working default avatar; no serious axe violations.<br><b>Actual:</b> every new user's avatar is a broken image (its URL returns HTTP 530). axe found: <code>image-alt</code> (critical, 2–6 per page), <code>color-contrast</code> (serious, up to 18 elements), <code>link-name</code> (serious), and missing <code>main</code> landmark.</td>
+<td class="sev Low">Low</td>
+<td>The default image is hard-coded to the retired <code>api.realworld.io</code> domain (<code>schema.prisma:48</code>). Avatar <code>&lt;img&gt;</code> tags have no <code>alt</code> text, and the theme's light-grey text is below 4.5:1 contrast.</td></tr>
+</table>
+
+<h2>3. Root-cause analysis: Bug #1, "users can't see each other's content"</h2>
+<p><b>What happens.</b> When Alice publishes an article, it appears in her own lists, but Bob, anonymous visitors, and tag pages all get an empty result (<code>articlesCount: 0</code>). Comments are filtered the same way, so Alice never sees Bob's comment on her own article. Opening the article by its direct URL works, which makes the problem look intermittent and hard for users to describe.</p>
+<p><b>Why.</b> In <code>src/app/routes/article/article.service.ts</code>, <code>buildFindAllQuery</code> (lines 13-25) always adds an author filter <code>OR: [{ demo: true }, { id: currentUserId }]</code>, and <code>getCommentsByArticle</code> (lines 419-431) does the same for comments. The <code>demo</code> column is only <code>true</code> for accounts created by the seed script (<code>src/prisma/seed.ts:22</code>), and the sign-up route forces <code>demo: false</code> for every real user (<code>auth.controller.ts:16</code>). This looks like a moderation rule for a public demo server ("only show curated seed content plus your own posts") that shipped as the default behaviour of the app. <code>getArticle</code> (single article) has no such filter, which is why direct links still work.</p>
+<p><b>Fix.</b> Remove the visibility clause from both queries, so lists filter only by what the user asked for (author, tag, favorited):</p>
+<pre>// article.service.ts – buildFindAllQuery
+const queries: any[] = [];
+if ('author' in query)    queries.push({ author: { username: { equals: query.author } } });
+if ('tag' in query)       queries.push({ tagList: { some: { name: query.tag } } });
+if ('favorited' in query) queries.push({ favoritedBy: { some: { username: { equals: query.favorited } } } });
+return queries;
+
+// getCommentsByArticle – drop `where: { OR: queries }` from the comments include</pre>
+<p>If moderation is actually needed, it should be an explicit, documented feature (for example a <code>hidden</code> flag on articles, off by default), not a side effect of a demo flag.</p>
+<p><b>How to stop it coming back.</b> Add a two-user integration test that runs in CI against a real database: Alice publishes, then Bob and an anonymous client call <code>GET /articles?author=alice</code> and must get <code>articlesCount: 1</code>; Bob comments, and Alice's <code>GET /articles/:slug/comments</code> must include it. The existing unit tests mock Prisma (<code>src/tests/prisma-mock.ts</code>), so they can't catch a wrong <code>where</code> clause; this bug only shows up with real data and two users. My script <code>scripts/bug-hidden-content.sh</code> already does exactly this and could be turned into that test.</p>
+
+<h2>4. How I tested</h2>
+<ul>
+<li>Read the backend source first to find risky code (error handler, auth, list queries, update logic), then tried to reproduce each suspicion. Only reproduced issues are in the table.</li>
+<li>API: one curl script per issue (<code>task1-qa-report/scripts/bug-*.sh</code>), each creating fresh users so it can be rerun. Full request/response logs are in <code>evidence/</code>, with tokens redacted.</li>
+<li>UI: Playwright script <code>ui-flows.mjs</code> runs every core flow headless, plus double-submit, two-tab logout, API outage, slow network (400 ms latency, 50 KB/s) and axe-core.</li>
+<li>One false lead I ruled out: an emoji title looked corrupted when sent with curl from Windows. Re-sending it as proper UTF-8 from Node showed the app stores it correctly; the corruption came from the Windows shell. That check is what led me to the real slug bug (#7).</li>
+</ul>
+
+<h2>5. What worked correctly (tested, no bug)</h2>
+<ul>
+<li><b>Access control:</b> Bob can't edit or delete Alice's article (403) or delete her comment (404, and the comment is still there). See <code>bug-session-and-auth.txt</code> and <code>checks-passed.txt</code>.</li>
+<li><b>XSS:</b> <code>&lt;img src=x onerror=…&gt;</code> and <code>javascript:</code> links in article markdown were removed by DOMPurify; the payload didn't run.</li>
+<li><b>Tampered token</b> is rejected with 401. Duplicate email or username at sign-up gets a clean 422.</li>
+<li><b>Unicode and emoji</b> content is stored and displayed correctly.</li>
+<li><b>Slow network:</b> the home page loaded in about 1 s with 400 ms latency at 50 KB/s.</li>
+<li><b>Notes, not counted as bugs:</b> CORS allows any origin (<code>Access-Control-Allow-Origin: *</code>). That's low risk here because auth uses a header, not cookies. The code also falls back to the JWT secret <code>'superSecret'</code> if <code>JWT_SECRET</code> isn't set (<code>auth.ts:16</code>); my setup did set it, so I didn't exploit this, but it's a deployment risk worth fixing.</li>
+</ul>
+
+<h2>Appendix: evidence (one per bug)</h2>
+<p class="small">Full logs are in <code>task1-qa-report/evidence/</code>. Each excerpt below is copied from those files without edits, except for line shortening (…).</p>
+
+<div class="ev"><h3>E1 · Bug #1: Bob and anonymous visitors can't see Alice's article or Bob's comment</h3>
+<pre>&gt; GET /api/articles?author=alice_179423991532024   (as Alice)
+{"articles":[{"slug":"Visible-to-all-179423991532024-1", …}],"articlesCount":1}   HTTP 200
+&gt; GET /api/articles?author=alice_179423991532024   (as Bob)
+{"articles":[],"articlesCount":0}   HTTP 200
+&gt; GET /api/articles?tag=qa179423991532024          (anonymous)
+{"articles":[],"articlesCount":0}   HTTP 200
+&gt; POST /api/articles/Visible-to-all-179423991532024-1/comments  (as Bob)  {"comment":{"body":"Great post from Bob"}}
+{"comment":{"id":1, … "body":"Great post from Bob" …}}   HTTP 200
+&gt; GET /api/articles/Visible-to-all-179423991532024-1/comments   (as Alice, the author)
+{"comments":[]}   HTTP 200</pre></div>
+
+<div class="ev"><h3>E2 · Bug #2: 500 errors with internal messages</h3>
+<pre>&gt; POST /api/articles/does-not-exist-…/comments   {"comment":{"body":"hi"}}
+"Argument data.article.connect of type ArticleWhereUniqueInput needs at least one argument.\n"   HTTP 500
+&gt; POST /api/articles/does-not-exist-…/favorite
+"\nInvalid `prisma.article.update()` invocation: … Required exactly one parent ID to be present for connect query, found 0."   HTTP 500
+&gt; PUT /api/user   {"user":{"email":"dave_179423991718694@qa.localhost"}}
+"\nInvalid `prisma.user.update()` invocation:\n\n\nUnique constraint failed on the fields: (`email`)"   HTTP 500
+&gt; POST /api/articles   {"title":"x"}
+"Cannot destructure property 'title' of 'article' as it is undefined."   HTTP 500</pre></div>
+
+<div class="ev"><h3>E3 · Bug #3: tags wiped by a body-only edit</h3>
+<pre>&gt; POST /api/articles {"article":{… "tagList":["keep-me","and-me"]}}  → "tagList":["keep-me","and-me"]   HTTP 201
+&gt; PUT  /api/articles/Tagged-179423991924203-5   {"article":{"body":"v2 - typo fixed"}}
+&gt; GET  /api/articles/Tagged-179423991924203-5   → "body":"v2 - typo fixed","tagList":[]   HTTP 200</pre></div>
+
+<div class="ev"><h3>E4 · Bug #4: weak password accepted, unlimited login attempts</h3>
+<pre>&gt; POST /api/users {"user":{"username":"weak_…","email":"not-an-email-…","password":"1"}}   HTTP 201
+30 wrong passwords: 403 403 403 … 403 (30×, no 429, no delay)
+&gt; POST /api/users/login (correct password)   HTTP 200</pre></div>
+
+<div class="ev"><h3>E5 · Bug #5: token still valid after logout</h3>
+<pre>Decoded JWT payload: {"user":{"id":14},"iat":1794239986,"exp":1799423986}   → exp − iat = 5,184,000 s = 60 days
+Playwright: after clicking "Or click here to logout": tokenStillInStorage=false, old token → GET /api/user = 200</pre></div>
+
+<div class="ev"><h3>E6 · Bug #6: misleading error messages (Playwright, network log + on-screen text)</h3>
+<pre>API PUT  /api/user     -> 500   (a) UI shows: "networkUnable to connect to the server"
+API POST /api/articles -> 401   (b) UI shows: "networkUnable to connect to the server"  header: … Settings ivy1794240143093</pre>
+<img src="../evidence/ui-two-tabs.png" style="width:70%"></div>
+
+<div class="ev"><h3>E7 · Bug #7: non-Latin titles collide</h3>
+<pre>&gt; POST /api/articles {"article":{"title":"नमस्ते दुनिया",…}}   → "slug":"-11"   HTTP 201
+&gt; POST /api/articles {"article":{"title":"मेरा दूसरा लेख",…}}  → {"errors":{"title":["must be unique"]}}   HTTP 422
+&gt; POST /api/articles {"article":{"title":"测试",…}}            → {"errors":{"title":["must be unique"]}}   HTTP 422
+&gt; POST /api/articles {"article":{"title":"     ",…}}          → "slug":"-13","title":"     "   HTTP 201   (bug-weak-validation.txt)</pre></div>
+
+<div class="ev two">
+  <div><h3>E8 · Bug #8 (and #10): duplicate comment, broken avatars</h3><img src="../evidence/ui-double-comment.png"></div>
+  <div><h3>E9 · Bug #9: API down, endless "Loading articles..."</h3><img src="../evidence/ui-api-down.png"></div>
+</div>
+
+<div class="ev"><h3>E10 · Bug #10: axe-core summary (violation id, impact, element count)</h3>
+<pre>home:     color-contrast(serious,11) image-alt(critical,2) link-name(serious,1) landmark-one-main(moderate,1) region(moderate,5)
+article:  color-contrast(serious,18) image-alt(critical,6) link-name(serious,4) landmark-one-main(moderate,1) region(moderate,12)
+editor:   color-contrast(serious,5)  image-alt(critical,1) page-has-heading-one(moderate,1) landmark-one-main(moderate,1)
+settings: color-contrast(serious,6)  image-alt(critical,1) landmark-one-main(moderate,1) region(moderate,6)
+Default avatar https://api.realworld.io/images/smiley-cyrus.jpeg → HTTP 530</pre></div>
+
+</body>
+</html>
