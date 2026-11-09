@@ -81,4 +81,4 @@ Everything below matches what's in the repo. If you're asked about something not
 - **Discord is a single point of failure for alerts:** if Discord is down, alerts are only visible in n8n's execution list.
 - **README summary is a heuristic:** it picks the first real sentence; some READMEs start with taglines or non-English text.
 - **The `superSecret` JWT fallback** was found in code but not exploited, because my setup sets `JWT_SECRET`. It's listed as a note, not a bug.
-- **Mock Discord during development:** all paths were proven against a local stand-in webhook (`task2-n8n-workflow/evidence/mock-discord-log.txt`), using the same Discord node and payload. Before submitting, run them once against the real channel and add a screenshot of the Discord messages (`task2-n8n-workflow/screenshots/discord-*.png`).
+- **Mock Discord during development:** all paths were proven against a local stand-in webhook (`task2-n8n-workflow/evidence/mock-discord-log.txt`), using the same Discord node and payload, then re-run against the real channel (`task2-n8n-workflow/screenshots/discord-messages.png`).

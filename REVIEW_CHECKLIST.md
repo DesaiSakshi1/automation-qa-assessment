@@ -18,7 +18,7 @@
 | 12 | Transformation (Code/expressions): filter, sort, top 5 | ✅ | `Top 5 + reshape` Code node |
 | 13 | Second HTTP Request enriching an item | ✅ | `GitHub: fetch README` for each of the top 5 |
 | 14 | IF node with a threshold | ✅ | `Stars ≥ 1000?`, justified with real data ([DECISIONS #13](DECISIONS.md)) |
-| 15 | Output to Discord / Slack / email / … | ⚠️ | Discord node via credential. Proven against a **mock** Discord ([mock-discord-log.txt](task2-n8n-workflow/evidence/mock-discord-log.txt)); real channel pending the webhook URL |
+| 15 | Output to Discord / Slack / email / … | ✅ | Discord node via credential; digest + 3 failure messages posted to the real channel on 9 Nov 2026 ([discord-messages.png](task2-n8n-workflow/screenshots/discord-messages.png)). Earlier dev runs: [mock log](task2-n8n-workflow/evidence/mock-discord-log.txt) |
 | 16 | Must not crash silently: Continue On Fail / Error Trigger / error branch | ✅ | All three; proven by [test-failures.sh](task2-n8n-workflow/test-failures.sh) |
 | 17 | No hard-coded secrets, Credentials store only | ✅ | `discordWebhookApi` credential; `n8n-export.sh` secret scan passes; git history scan clean |
 | 18 | Exported JSON `Task2_Workflow_[YourName].json` | ✅ | [Task2_Workflow_SakshiDesai.json](task2-n8n-workflow/Task2_Workflow_SakshiDesai.json), exported from n8n |
@@ -27,7 +27,7 @@
 | 21 | Happy-path curl test (optional) | ✅ | [test-webhook.sh](task2-n8n-workflow/test-webhook.sh) → PASS (also on the fresh clone) |
 | **Bonus** ||||
 | 22 | Pings the Task 1 app every 5 min, checks status code | ✅ | [Bonus JSON](bonus-uptime-monitor/Bonus_UptimeMonitor_SakshiDesai.json) |
-| 23 | Alert on non-200 to the same channel | ✅ / ⚠️ | DOWN + recovered proven on mock; real channel pending |
+| 23 | Alert on non-200 to the same channel | ✅ | DOWN → recovered → summary drill run against the real channel |
 | 24 | Retry logic, response-time tracking, daily summary | ✅ | 2-in-a-row rule, ms per check, avg/p95/uptime/incidents summary |
 | 25 | `Bonus_UptimeMonitor_[YourName].json` + one screenshot | ✅ | [canvas.png](bonus-uptime-monitor/screenshots/canvas.png) |
 | **Submission** ||||
